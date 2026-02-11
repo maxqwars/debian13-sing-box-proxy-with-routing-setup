@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly update of sing-box geodata
+Requires=sing-box-geodata.service
+
+[Timer]
+OnCalendar=Sun 04:00
+Persistent=true
+RandomizedDelaySec=3600
+
+[Install]
+WantedBy=timers.target

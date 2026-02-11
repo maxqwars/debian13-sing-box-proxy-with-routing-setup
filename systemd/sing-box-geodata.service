@@ -1,0 +1,12 @@
+[Unit]
+Description=Update sing-box geodata SRS files
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/geodata-update --quiet
+User=root
+Group=root
+StandardOutput=journal
+StandardError=journal

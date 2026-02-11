@@ -1,0 +1,99 @@
+{
+  "log": {
+    "level": "fatal",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "google-dns",
+        "type": "udp",
+        "server": "8.8.8.8"
+      },
+      {
+        "tag": "google-dns",
+        "type": "tcp",
+        "server": "8.8.8.8"
+      }
+    ],
+    "rules": [
+      {
+        "server": "google-dns",
+        "action": "route"
+      }
+    ]
+  },
+  "inbounds": [
+    {
+      "type": "socks",
+      "tag": "socks-in",
+      "listen": "::",
+      "listen_port": 1080,
+      "sniff": true,
+      "sniff_override_destination": true
+    },
+    {
+      "type": "http",
+      "tag": "http-in",
+      "listen": "::",
+      "listen_port": 1081,
+      "sniff": true,
+      "sniff_override_destination": true
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "block",
+      "tag": "block"
+    },
+    {
+      "type": "direct",
+      "tag": "vless-proxy"
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rule_set": [
+      {
+        "type": "local",
+        "tag": "geoip-ru",
+        "format": "binary",
+        "path": "/etc/sing-box/geodata/geoip-ru.srs"
+      },
+      {
+        "type": "local",
+        "tag": "geosite-yandex",
+        "format": "binary",
+        "path": "/etc/sing-box/geodata/geosite-yandex.srs"
+      },
+      {
+        "type": "local",
+        "tag": "geosite-category-games",
+        "format": "binary",
+        "path": "/etc/sing-box/geodata/geosite-category-games.srs"
+      }
+    ],
+    "rules": [
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "ip_is_private": true,
+        "action": "route",
+        "outbound": "direct"
+      },
+      {
+        "rule_set": ["geoip-ru", "geosite-yandex", "geosite-category-games"],
+        "outbound": "direct"
+      },
+      {
+        "outbound": "vless-proxy"
+      }
+    ],
+    "final": "vless-proxy"
+  }
+}

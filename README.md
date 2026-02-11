@@ -1,4 +1,3 @@
-
 # Breaking out of the digital prison 🌩️
 
 <center>
@@ -9,8 +8,11 @@ This repository contains instructions for configuring sing-box in http/sock5 pro
 
 ![GitHub forks](https://img.shields.io/github/forks/maxqwars/debian13-sing-box-proxy-with-routing-setup)
 ![GitHub Repo stars](https://img.shields.io/github/stars/maxqwars/debian13-sing-box-proxy-with-routing-setup)
+![sing-box version](https://img.shields.io/badge/sing--box-1.12+-black?logo=go)
+![Debian](https://img.shields.io/badge/OS-Debian-A81D33?logo=debian&logoColor=white)
+![Ubuntu](https://img.shields.io/badge/OS-Ubuntu-E95420?logo=ubuntu&logoColor=white)
 
-## Notice
+## ⚠️ Important Notice
 
 This repository does not contain ready-made configurations for outbounds, you must configure them yourself or adapt the ones you have. Please adapt the configurations from the examples to your tasks, copy-paste does not work with the configurations from the examples.
 
@@ -21,68 +23,102 @@ Sing-box is a universal, open-source proxy platform (written in Go) designed for
 ## Installing sing-box
 
 Download the latest .deb package from the [official releases](https://github.com/SagerNet/sing-box/releases).
+**Configurations are adapted for version sing-box-1.12**
 
 ```bash
-$ wget https://github.com/SagerNet/sing-box/releases/download/v1.12.21/sing-box_1.12.21_linux_amd64.deb
-$ sudo dpkg -i ./sing-box_1.12.21_linux_amd64.deb
+wget https://github.com/SagerNet/sing-box/releases/download/v1.12.21/sing-box_1.12.21_linux_amd64.deb
+sudo dpkg -i ./sing-box_1.12.21_linux_amd64.deb
 ```
 
 ## Quick setup of scripts from this repository
 
-### Clone repo
+### 1. Get repository content
 
 ```bash
-$ git clone https://github.com/maxqwars/debian13-sing-box-proxy-with-routing-setup
-$ sudo cd debian13-sing-box-proxy-with-routing-setup
+git clone https://github.com/maxqwars/debian13-sing-box-proxy-with-routing-setup
+cd debian13-sing-box-proxy-with-routing-setup
+
+# Run script for install dependencies and create first geodat convert
+sudo chmod +x ./scripts/geodata-update.sh
+sudo ./scripts/geodata-update.sh
+
+# Install geodata update script
+sudo install -m 755 ./scripts/geodata-update.sh /usr/local/bin/geodata-update
+
+# Install Systemd units
+sudo cp ./systemd/sing-box-geodata.service /etc/systemd/system/sing-box-geodata.service
+sudo cp ./systemd/sing-box-geodata.timer /etc/systemd/system/sing-box-geodata.timer
+
+# Enable the update timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now sing-box-geodata.timer
 ```
 
-### Install geodata-update.sh
+### 2. Verify geodata update
 
 ```bash
-$ sudo install -m 755 <repo>/scripts/geodata-update.sh /usr/local/bin/geodata-update
+# Check the next scheduled run
+sudo systemctl list-timers sing-box-geodata.timer
+
+# View update logs
+sudo journalctl -u sing-box-geodata.service -n 50 --no-pager
 ```
 
-### Install sing-box-geodata.service
+### 3. Configuration
+
+Copy the example configuration and add your outbounds:
 
 ```bash
-$ sudo cp ./systemd/sing-box-geodata.service /etc/systemd/system/sing-box-geodata.service
+sudo cp configs/config.ru_splitting.json /etc/sing-box/config.json
+sudo nano /etc/sing-box/config.json
 ```
 
-### Install sing-box-geodata.timer
+Before restarting, always verify the syntax:
 
 ```bash
-$ sudo cp ./systemd/sing-box-geodata.timer /etc/systemd/system/sing-box-geodata.timer
+sing-box check -c /etc/sing-box/config.json
 ```
 
-### Enable service and timer
+If everything is correct, restart the service:
 
 ```bash
-$ sudo systemctl daemon-reload
-$ sudo systemctl enable --now sing-box-geodata.timer
+sudo systemctl restart sing-box
 ```
 
-### Check geodata update
+## Client Configuration:
+
+By default, the configuration creates two local inbound proxies. You can use them to route traffic from your browser, Telegram, or system-wide settings.
+
+| Protocol   | Address     | Port   | Auth |
+| ---------- | ----------- | ------ | ---- |
+| **HTTP**   | `127.0.0.1` | `1081` | None |
+| **SOCKS5** | `127.0.0.1` | `1081` | None |
+
+### How to use
+
+**1. System-wide or Browser**
+Set the proxy address to `127.0.0.1` and port `1081` in your Windows/macOS/Linux network settings or in browser extensions like _SwitchyOmega_.
+
+**2. Telegram**
+Go to `Settings` -> `Advanced` -> `Connection Type` -> `Use custom proxy` -> `Add proxy`.
+
+- Select **SOCKS5**
+- Hostname: `127.0.0.1`
+- Port: `1081`
+
+**3. Terminal (Verify connection)**
+You can quickly check if the proxy is working by running these commands:
 
 ```bash
-$ sudo systemctl list-timers sing-box-geodata.timer # Next timer run time
-$ sudo journalctl -u sing-box-geodata.service -n 50 --no-pager # Latest update log
+# Check via HTTP proxy
+curl -x http://127.0.0.1:1081 https://google.com -I
+
+# Check via SOCKS5 proxy
+curl -x socks5h://127.0.0.1:1081 https://google.com -I
+
 ```
 
-### Copy sing-box config for adaptation
-
-```bash
-$ sudo cp ./configs/config.example.json /etc/sing-box/config.json
-```
-
-- ⚠️ **This file does not initially contain settings for outbounds. Add them yourself before launching sing-box.**
-- ⚠️ **Always back up your working configuration.**
-- ⚠️ **Always verify the correctness of your configuration using sing-box check -c <path_to_config>**
-
-## Special thanks / Useful links
-
-- Documentation sing-box [Link](https://sing-box.sagernet.org/)
-- v2ray-rules-dat [Link](https://github.com/Loyalsoldier/v2ray-rules-dat/)
-- geodat2srs converter [Link](https://github.com/runetfreedom/geodat2srs)
+> **Note:** The `socks5h` protocol (with 'h') ensures that DNS resolution also happens through the proxy, which is essential for bypassing censorship.
 
 # How it works, more details about this project
 
@@ -303,7 +339,9 @@ main() {
 main "$@"
 ```
 
-### Content of sing-box-geodata.service
+### 📄 File sing-box-geodata.service
+
+The geodat update script itself has been adapted to run using systemd.
 
 ```
 [Unit]
@@ -320,7 +358,9 @@ StandardOutput=journal
 StandardError=journal
 ```
 
-### Content of sing-box-geodata.timer
+### 📄 File sing-box-geodata.timer
+
+This timer is activated every week to trigger a geodat update.
 
 ```
 [Unit]
@@ -335,3 +375,11 @@ RandomizedDelaySec=3600
 [Install]
 WantedBy=timers.target
 ```
+
+## Special thanks / Useful links
+
+Links to projects without which this one could not exist. Be sure to visit them.
+
+- Documentation for sing-box. [Link](https://sing-box.sagernet.org/)
+- A constantly updated list of geo-rules for v2ray. [Loyalsoldier/v2ray-rules-dat](https://github.com/Loyalsoldier/v2ray-rules-dat/)
+- Converter for files from .dat format to .srs format. [runetfreedom/geodat2srs](https://github.com/runetfreedom/geodat2srs)
